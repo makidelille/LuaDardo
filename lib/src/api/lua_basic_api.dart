@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import '../state/lua_userdata.dart';
-
 import 'lua_type.dart';
 
 abstract class LuaBasicAPI {
@@ -94,6 +94,10 @@ abstract class LuaBasicAPI {
 
   void pushDartClosure(DartFunction f, int n);
 
+  void pushDartAsyncFunction(DartAsyncFunction f);
+
+  void pushDartAsyncClosure(DartAsyncFunction f, int n);
+
   void pushGlobalTable();
 
 /* comparison and arithmetic functions */
@@ -125,28 +129,28 @@ abstract class LuaBasicAPI {
   bool getMetatable(int idx);
 
 /* set functions (stack -> Lua) */
-  void setTable(int idx);
+  FutureOr<void> setTable(int idx);
 
-  void setField(int idx, String? k);
+  FutureOr<void> setField(int idx, String? k);
 
-  void setI(int idx, int? i);
+  FutureOr<void> setI(int idx, int? i);
 
-  void rawSet(int idx);
+  FutureOr<void> rawSet(int idx);
 
-  void rawSetI(int idx, int i);
+  FutureOr<void> rawSetI(int idx, int i);
 
   void setMetatable(int idx);
 
-  void setGlobal(String name);
+  FutureOr<void> setGlobal(String name);
 
-  void register(String name, DartFunction f);
+  FutureOr<void> register(String name, DartFunction f);
 
 /* 'load' and 'call' functions (load and run Lua code) */
   ThreadStatus load(Uint8List chunk, String chunkName, String? mode);
 
-  void call(int nArgs, int nResults);
+  FutureOr<void> call(int nArgs, int nResults);
 
-  ThreadStatus pCall(int nArgs, int nResults, int msgh);
+  FutureOr<ThreadStatus> pCall(int nArgs, int nResults, int msgh);
 
 /* miscellaneous functions */
   void len(int idx);
