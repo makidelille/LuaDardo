@@ -12,7 +12,7 @@ const luaMaxInteger = 1 << 63 - 1;
 const luaMinInteger = -1 << 63;
 
 abstract class LuaState extends LuaBasicAPI implements LuaAuxLib {
-  static LuaState newState({bool enableAsync = false}) {
-    return LuaStateImpl(enableAsync: enableAsync);
+  static LuaState newState() {
+    return LuaStateImpl();
   }
 }

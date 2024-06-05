@@ -1,16 +1,14 @@
 import 'dart:io';
 
-import '../vm/instructions.dart';
-
 import '../api/lua_state.dart';
 import '../api/lua_type.dart';
+import '../vm/instructions.dart';
 
 // key, in the registry, for table of loaded modules
 const lua_loaded_table = "_LOADED";
 
 // key, in the registry, for table of preloaded loaders
 const lua_preload_table = "_PRELOAD";
-
 
 const lua_path_sep = ";";
 const lua_path_mark = "?";
@@ -73,7 +71,7 @@ class PackageLib {
 
     if (ls.getField(-1, name) == LuaType.luaNil) {
       /* not found? */
-      ls.pushString("\n\tno field package.preload['" + name! + "']");
+      ls.pushString("\n\tno field package.preload['${name!}']");
     }
     return 1;
   }
@@ -114,13 +112,13 @@ class PackageLib {
         if (Directory(filename).existsSync()) {
           return filename;
         } else {
-          throw Exception("\n\tno file '" + filename + "'");
+          throw Exception("\n\tno file '$filename'");
         }
       } else {
         if (File(filename).existsSync()) {
           return filename;
         } else {
-          throw Exception("\n\tno file '" + filename + "'");
+          throw Exception("\n\tno file '$filename'");
         }
       }
     }
@@ -149,7 +147,7 @@ class PackageLib {
 
   // require (modname)
   // http://www.lua.org/manual/5.3/manual.html#pdf-require
-  static int _pkgRequire(LuaState ls) {
+  static Future<int> _pkgRequire(LuaState ls) async {
     var name = ls.checkString(1);
     ls.setTop(1); // LOADED table will be at index 2
     ls.getField(luaRegistryIndex, lua_loaded_table);
@@ -160,26 +158,26 @@ class PackageLib {
     }
     // else must load package
     ls.pop(1); // remove 'getfield' result
-    _findLoader(ls, name);
+    await _findLoader(ls, name);
     ls.pushString(name); // pass name as argument to module loader
     ls.insert(-2); // name is 1st argument (before search data)
-    ls.call(2, 1); // run loader to load module
+    await ls.call(2, 1); // run loader to load module
 
     if (!ls.isNil(-1)) {
       // non-nil return?
-      ls.setField(2, name); // LOADED[name] = returned value
+      await ls.setField(2, name); // LOADED[name] = returned value
     }
 
     // module set no value?
     if (ls.getField(2, name) == LuaType.luaNil) {
       ls.pushBoolean(true); // use true as result
       ls.pushValue(-1); // extra copy to be returned
-      ls.setField(2, name); // LOADED[name] = true
+      await ls.setField(2, name); // LOADED[name] = true
     }
     return 1;
   }
 
-  static void _findLoader(LuaState ls, String? name) {
+  static Future<void> _findLoader(LuaState ls, String? name) async {
     // push 'package.searchers' to index 3 in the stack
     if (ls.getField(Instructions.luaUpvalueIndex(1), "searchers") !=
         LuaType.luaTable) {
@@ -199,7 +197,7 @@ class PackageLib {
       }
 
       ls.pushString(name);
-      ls.call(1, 2); // call it
+      await ls.call(1, 2); // call it
 
       if (ls.isFunction(-2)) {
         // did it find a loader?

@@ -48,13 +48,13 @@ class BasicLib {
 // print (···)
 // http://www.lua.org/manual/5.3/manual.html#pdf-print
 // lua-5.3.4/src/lbaselib.c#luaB_print()
-  static int _basePrint(LuaState ls) {
+  static Future<int> _basePrint(LuaState ls) async {
     int n = ls.getTop(); /* number of arguments */
     ls.getGlobal('tostring');
     for (int i = 1; i <= n; i++) {
       ls.pushValue(-1); /* function to be called */
       ls.pushValue(i); /* value to print */
-      ls.call(1, 1);
+      await ls.call(1, 1);
       String? s = ls.toStr(-1); /* get result */
       if (s == null) {
         return ls.error2("'tostring' must return a string to 'print'");
@@ -140,7 +140,7 @@ class BasicLib {
 // pairs (t)
 // http://www.lua.org/manual/5.3/manual.html#pdf-pairs
 // lua-5.3.4/src/lbaselib.c#luaB_pairs()
-  static int _basePairs(LuaState ls) {
+  static Future<int> _basePairs(LuaState ls) async {
     ls.checkAny(1);
     if (ls.getMetafield(1, "__pairs") == LuaType.luaNil) {
       /* no metamethod? */
@@ -149,7 +149,7 @@ class BasicLib {
       ls.pushNil();
     } else {
       ls.pushValue(1); /* argument 'self' to metamethod */
-      ls.call(1, 3); /* get 3 values from metamethod */
+      await ls.call(1, 3); /* get 3 values from metamethod */
     }
     return 3;
   }
@@ -216,13 +216,13 @@ class BasicLib {
 // dofile ([filename])
 // http://www.lua.org/manual/5.3/manual.html#pdf-dofile
 // lua-5.3.4/src/lbaselib.c#luaB_dofile()
-  static int _baseDoFile(LuaState ls) {
+  static Future<int> _baseDoFile(LuaState ls) async {
     String? fname = ls.optString(1, "bt");
     ls.setTop(1);
     if (ls.loadFile(fname) != ThreadStatus.luaOk) {
       return ls.error();
     }
-    ls.call(0, luaMultret);
+    await ls.call(0, luaMultret);
     return ls.getTop() - 1;
   }
 

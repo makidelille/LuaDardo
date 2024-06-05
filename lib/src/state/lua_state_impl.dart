@@ -29,13 +29,12 @@ import 'lua_value.dart';
 import 'upvalue_holder.dart';
 
 class LuaStateImpl implements LuaState, LuaVM {
-  bool enableAsync;
   LuaStack? _stack = LuaStack();
 
   /// 注册表
   LuaTable? registry = LuaTable(0, 0);
 
-  LuaStateImpl({this.enableAsync = false}) {
+  LuaStateImpl() {
     registry!.put(luaRidxGlobals, LuaTable(0, 0));
     LuaStack stack = LuaStack();
     stack.state = this;
@@ -44,13 +43,13 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   /// 压入调用栈帧
   void _pushLuaStack(LuaStack newTop) {
-    newTop.prev = this._stack;
-    this._stack = newTop;
+    newTop.prev = _stack;
+    _stack = newTop;
   }
 
   void _popLuaStack() {
-    LuaStack top = this._stack!;
-    this._stack = top.prev;
+    LuaStack top = _stack!;
+    _stack = top.prev;
     top.prev = null;
   }
 
@@ -75,14 +74,12 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   Object? _getMetafield(Object? val, String fieldName) {
     LuaTable? mt = _getMetatable(val);
-    return mt != null ? mt.get(fieldName) : null;
+    return mt?.get(fieldName);
   }
 
   Object? getMetamethod(Object? a, Object? b, String mmName) {
     Object? mm = _getMetafield(a, mmName);
-    if (mm == null) {
-      mm = _getMetafield(b, mmName);
-    }
+    mm ??= _getMetafield(b, mmName);
     return mm;
   }
 
@@ -261,7 +258,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   @override
   int toInteger(int idx) {
     int? i = toIntegerX(idx);
-    return i == null ? 0 : i;
+    return i ?? 0;
   }
 
   @override
@@ -273,7 +270,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   @override
   double toNumber(int idx) {
     double? n = toNumberX(idx);
-    return n == null ? 0 : n;
+    return n ?? 0;
   }
 
   @override
@@ -488,14 +485,14 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<void> setField(int idx, String? k) async {
+  Future<void> setField(int idx, String? k) async {
     Object? t = _stack!.get(idx);
     Object? v = _stack!.pop();
     await _setTable(t, k, v, false);
   }
 
   @override
-  FutureOr<void> setTable(int idx) async {
+  Future<void> setTable(int idx) async {
     Object? t = _stack!.get(idx);
     Object? v = _stack!.pop();
     Object? k = _stack!.pop();
@@ -503,13 +500,13 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<void> setI(int idx, int? i) async {
+  Future<void> setI(int idx, int? i) async {
     Object? t = _stack!.get(idx);
     Object? v = _stack!.pop();
     await _setTable(t, i, v, false);
   }
 
-  FutureOr<void> _setTable(Object? t, Object? k, Object? v, bool raw) async {
+  Future<void> _setTable(Object? t, Object? k, Object? v, bool raw) async {
     if (t is LuaTable) {
       LuaTable tbl = t;
       if (raw || tbl.get(k) != null || !tbl.hasMetafield("__newindex")) {
@@ -539,7 +536,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<void> call(int nArgs, int nResults) async {
+  Future<void> call(int nArgs, int nResults) async {
     Object? val = _stack!.get(-(nArgs + 1));
     Object? f = val is Closure ? val : null;
 
@@ -555,12 +552,7 @@ class LuaStateImpl implements LuaState, LuaVM {
 
     if (f != null) {
       Closure c = f as Closure;
-      if (c.dartAsyncFunc != null) {
-        if (!enableAsync)
-          throw Exception(
-              "Async function was used, enableAsync must be set to true");
-        await _callDartAsyncClosure(nArgs, nResults, c);
-      } else if (c.proto != null) {
+      if (c.proto != null) {
         await _callLuaClosure(nArgs, nResults, c);
       } else {
         await _callDartClosure(nArgs, nResults, c);
@@ -570,7 +562,7 @@ class LuaStateImpl implements LuaState, LuaVM {
     }
   }
 
-  FutureOr<void> _callLuaClosure(int nArgs, int nResults, Closure c) async {
+  Future<void> _callLuaClosure(int nArgs, int nResults, Closure c) async {
     int nRegs = c.proto!.maxStackSize;
     int nParams = c.proto!.numParams!;
     bool isVararg = c.proto!.isVararg == 1;
@@ -601,9 +593,9 @@ class LuaStateImpl implements LuaState, LuaVM {
     }
   }
 
-  FutureOr<void> _callDartClosure(int nArgs, int nResults, Closure c) async {
+  Future<void> _callDartClosure(int nArgs, int nResults, Closure c) async {
     // create new lua stack
-    LuaStack newStack = new LuaStack(/*nRegs+LUA_MINSTACK*/);
+    LuaStack newStack = LuaStack(/*nRegs+LUA_MINSTACK*/);
     newStack.state = this;
     newStack.closure = c;
 
@@ -615,7 +607,7 @@ class LuaStateImpl implements LuaState, LuaVM {
 
     // run closure
     _pushLuaStack(newStack);
-    int r = await c.dartFunc!.call(this);
+    int r = await Future.value(c.dartFunc!.call(this));
     _popLuaStack();
 
     // return results
@@ -626,32 +618,7 @@ class LuaStateImpl implements LuaState, LuaVM {
     }
   }
 
-  Future<void> _callDartAsyncClosure(int nArgs, int nResults, Closure c) async {
-    // create new lua stack
-    LuaStack newStack = new LuaStack(/*nRegs+LUA_MINSTACK*/);
-    newStack.state = this;
-    newStack.closure = c;
-
-    // pass args, pop func
-    if (nArgs > 0) {
-      newStack.pushN(_stack!.popN(nArgs), nArgs);
-    }
-    _stack!.pop();
-
-    // run closure
-    _pushLuaStack(newStack);
-    int r = await c.dartAsyncFunc!.call(this);
-    _popLuaStack();
-
-    // return results
-    if (nResults != 0) {
-      List<Object?> results = newStack.popN(r);
-      //stack.check(results.size())
-      _stack!.pushN(results, nResults);
-    }
-  }
-
-  FutureOr<void> _runLuaClosure() async {
+  Future<void> _runLuaClosure() async {
     for (;;) {
       int i = fetch();
       OpCode opCode = Instruction.getOpCode(i);
@@ -669,7 +636,7 @@ class LuaStateImpl implements LuaState, LuaVM {
         : Compiler.compile(utf8.decode(chunk), chunkName);
     Closure closure = Closure(proto);
     _stack!.push(closure);
-    if (proto.upvalues.length > 0) {
+    if (proto.upvalues.isNotEmpty) {
       Object? env = registry!.get(luaRidxGlobals);
       closure.upvals[0] = UpvalueHolder.value(env); // todo
     }
@@ -685,11 +652,6 @@ class LuaStateImpl implements LuaState, LuaVM {
   @override
   void pushDartFunction(f) {
     _stack!.push(Closure.DartFunc(f, 0));
-  }
-
-  @override
-  void pushDartAsyncFunction(f) {
-    _stack!.push(Closure.DartAsyncFunc(f, 0));
   }
 
   @override
@@ -720,23 +682,13 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  void pushDartAsyncClosure(DartAsyncFunction? f, int n) {
-    Closure closure = Closure.DartAsyncFunc(f, n);
-    for (int i = n; i > 0; i--) {
-      Object? val = _stack!.pop();
-      closure.upvals[i - 1] = UpvalueHolder.value(val); // TODO
-    }
-    _stack!.push(closure);
-  }
-
-  @override
-  FutureOr<void> register(String name, f) async {
+  Future<void> register(String name, f) async {
     pushDartFunction(f);
     await setGlobal(name);
   }
 
   @override
-  FutureOr<void> setGlobal(String name) async {
+  Future<void> setGlobal(String name) async {
     Object? t = registry!.get(luaRidxGlobals);
     Object? v = _stack!.pop();
     await _setTable(t, name, v, false);
@@ -791,7 +743,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<void> rawSet(int idx) async {
+  Future<void> rawSet(int idx) async {
     Object? t = _stack!.get(idx);
     Object? v = _stack!.pop();
     Object? k = _stack!.pop();
@@ -799,7 +751,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<void> rawSetI(int idx, int i) async {
+  Future<void> rawSetI(int idx, int i) async {
     Object? t = _stack!.get(idx);
     Object? v = _stack!.pop();
     await _setTable(t, i, v, true);
@@ -843,14 +795,14 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  FutureOr<ThreadStatus> pCall(int nArgs, int nResults, int msgh) async {
+  Future<ThreadStatus> pCall(int nArgs, int nResults, int msgh) async {
     LuaStack? caller = _stack;
     try {
       await call(nArgs, nResults);
       return ThreadStatus.luaOk;
     } catch (e) {
       if (msgh != 0) {
-        throw e;
+        rethrow;
       }
       while (_stack != caller) {
         _popLuaStack();
@@ -925,7 +877,7 @@ class LuaStateImpl implements LuaState, LuaVM {
     } else {
       typeArg = typeName2(arg); /* standard name */
     }
-    String msg = tname + " expected, got " + typeArg!;
+    String msg = "$tname expected, got ${typeArg!}";
     pushString(msg);
     argError(arg, msg);
   }
@@ -1040,7 +992,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   ThreadStatus loadFileX(String? filename, String? mode) {
     try {
       File file = File(filename!);
-      return load(file.readAsBytesSync(), "@" + filename, mode);
+      return load(file.readAsBytesSync(), "@$filename", mode);
     } catch (e, s) {
       print(e);
       print(s);
@@ -1056,7 +1008,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   @override
   void newLib(Map l) {
     newLibTable(l);
-    setFuncs(l as Map<String, int Function(LuaState)?>, 0);
+    setFuncs(l as Map<String, FutureOr<int> Function(LuaState)?>, 0);
   }
 
   @override
@@ -1065,7 +1017,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  void openLibs() {
+  Future<void> openLibs() async {
     Map<String, DartFunction> libs = <String, DartFunction>{
       "_G": BasicLib.openBaseLib,
       "package": PackageLib.openPackageLib,
@@ -1075,10 +1027,10 @@ class LuaStateImpl implements LuaState, LuaVM {
       "os": OSLib.openOSLib
     };
 
-    libs.forEach((name, fun) {
-      requireF(name, fun, true);
+    for (final entry in libs.entries) {
+      await requireF(entry.key, entry.value, true);
       pop(1);
-    });
+    }
   }
 
   @override
@@ -1103,7 +1055,7 @@ class LuaStateImpl implements LuaState, LuaVM {
   }
 
   @override
-  void requireF(String modname, openf, bool glb) {
+  Future<void> requireF(String modname, openf, bool glb) async {
     getSubTable(luaRegistryIndex, "_LOADED");
     getField(-1, modname); /* LOADED[modname] */
     if (!toBoolean(-1)) {
@@ -1111,14 +1063,14 @@ class LuaStateImpl implements LuaState, LuaVM {
       pop(1); /* remove field */
       pushDartFunction(openf);
       pushString(modname); /* argument to open function */
-      call(1, 1); /* call 'openf' to open module */
+      await call(1, 1); /* call 'openf' to open module */
       pushValue(-1); /* make copy of module (call result) */
-      setField(-3, modname); /* _LOADED[modname] = module */
+      await setField(-3, modname); /* _LOADED[modname] = module */
     }
     remove(-2); /* remove _LOADED table */
     if (glb) {
       pushValue(-1); /* copy of module */
-      setGlobal(modname); /* _G[modname] = module */
+      await setGlobal(modname); /* _G[modname] = module */
     }
   }
 
@@ -1225,29 +1177,32 @@ class LuaStateImpl implements LuaState, LuaVM {
     return true;
   }
 
+  @override
   int ref(int t) {
-    int _ref;
+    int ref;
     if (isNil(-1)) {
       pop(1); /* remove from stack */
       return -1; /* 'nil' has a unique fixed reference */
     }
     t = absIndex(t);
     rawGetI(t, 0); /* get first free element */
-    _ref = toInteger(-1); /* ref = t[freelist] */
+    ref = toInteger(-1); /* ref = t[freelist] */
     pop(1); /* remove it from stack */
-    if (_ref != 0) {
+    if (ref != 0) {
       /* any free element? */
-      rawGetI(t, _ref); /* remove it from list */
+      rawGetI(t, ref); /* remove it from list */
       rawSetI(t, 0); /* (t[freelist] = t[ref]) */
-    } else
+    } else {
       /* no free elements */
-      _ref = rawLen(t) + 1;
+      ref = rawLen(t) + 1;
+    }
     /* get a new reference */
 
-    rawSetI(t, _ref);
-    return _ref;
+    rawSetI(t, ref);
+    return ref;
   }
 
+  @override
   void unRef(int t, int ref) {
     if (ref >= 0) {
       t = absIndex(t);
@@ -1303,7 +1258,7 @@ class LuaStateImpl implements LuaState, LuaVM {
       int? uvIdx = uvInfo.idx;
       if (uvInfo.instack == 1) {
         if (_stack!.openuvs == null) {
-          _stack!.openuvs = Map<int?, UpvalueHolder?>();
+          _stack!.openuvs = <int?, UpvalueHolder?>{};
         }
         if (_stack!.openuvs!.containsKey(uvIdx)) {
           closure.upvals[i] = _stack!.openuvs![uvIdx];
@@ -1319,10 +1274,9 @@ class LuaStateImpl implements LuaState, LuaVM {
 
   @override
   void loadVararg(int n) {
-    List<Object?>? varargs =
-        _stack!.varargs != null ? _stack!.varargs : const <Object>[];
+    List<Object?>? varargs = _stack!.varargs ?? const <Object>[];
     if (n < 0) {
-      n = varargs!.length;
+      n = varargs.length;
     }
 
     //stack.check(n)
@@ -1341,8 +1295,9 @@ class LuaStateImpl implements LuaState, LuaVM {
         if (v!.index! >= a - 1) {
           v.migrate();
           return true;
-        } else
+        } else {
           return false;
+        }
       });
     }
   }

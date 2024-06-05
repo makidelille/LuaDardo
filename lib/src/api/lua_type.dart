@@ -52,5 +52,4 @@ enum ThreadStatus {
   luaErrFile,
 }
 
-typedef DartFunction = int Function(LuaState ls);
-typedef DartAsyncFunction = Future<int> Function(LuaState ls);
+typedef DartFunction = FutureOr<int> Function(LuaState ls);

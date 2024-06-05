@@ -126,7 +126,7 @@ class TableLib {
       return 1;
     }
 
-    var buf = List<String?>.filled(j - i + 1,null);
+    var buf = List<String?>.filled(j - i + 1, null);
     for (var k = i; k > 0 && k <= j; k++) {
       ls.getI(1, k);
       if (!ls.isString(-1)) {
@@ -154,7 +154,7 @@ class TableLib {
     if (ls.type(arg) != LuaType.luaTable) {
       /* is it not a table? */
       var n = 1; /* number of elements to pop */
-      var nL = List<int>.filled(1,0)..[0] = n;
+      var nL = List<int>.filled(1, 0)..[0] = n;
       if (ls.getMetatable(arg) && /* must have metatable */
           (what & TAB_R != 0 || _checkField(ls, "__index", nL)) &&
           (what & TAB_W != 0 || _checkField(ls, "__newindex", nL)) &&
@@ -236,13 +236,13 @@ class _SortHelper {
     return ls.len2(1);
   }
 
-  bool _less(int i, int j) {
+  Future<bool> _less(int i, int j) async {
     if (ls.isFunction(2)) {
       // cmp is given
       ls.pushValue(2);
       ls.getI(1, i + 1);
       ls.getI(1, j + 1);
-      ls.call(2, 1);
+      await ls.call(2, 1);
       var b = ls.toBoolean(-1);
       ls.pop(1);
       return b;
@@ -263,20 +263,20 @@ class _SortHelper {
     ls.setI(1, j + 1);
   }
 
-  int _partition(int low, int high) {
+  Future<int> _partition(int low, int high) async {
     int i = low;
     int j = high + 1;
 
     while (true) {
       // find item on low to swap
-      while (_less(++i, low)) {
+      while (await _less(++i, low)) {
         if (i == high) {
           break;
         }
       }
 
       // find item on high to swap
-      while (_less(low, --j)) {
+      while (await _less(low, --j)) {
         if (j == low) {
           break;
         }
@@ -293,11 +293,11 @@ class _SortHelper {
     return j;
   }
 
-  void quickSort(int low, int high) {
+  Future<void> quickSort(int low, int high) async {
     if (low < high) {
-      int pi = _partition(low, high);
-      quickSort(low, pi - 1);
-      quickSort(pi + 1, high);
+      int pi = await _partition(low, high);
+      await quickSort(low, pi - 1);
+      await quickSort(pi + 1, high);
     }
   }
 }
