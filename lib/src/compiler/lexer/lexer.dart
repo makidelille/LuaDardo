@@ -16,9 +16,9 @@ class Lexer {
   Token? cachedNextToken;
   int? lineBackup;
 
-  StringBuffer _buff = StringBuffer();
+  final StringBuffer _buff = StringBuffer();
 
-  Lexer(this.chunk,this.chunkName):this.line=1;
+  Lexer(this.chunk,this.chunkName):line=1;
 
   TokenKind LookAhead() {
     if (cachedNextToken == null) {
@@ -276,14 +276,18 @@ class Lexer {
                   _save_c(int.parse(hex, radix: 16));
                   chunk.next(3);
                   continue;
-                }else error("hexadecimal digit expected");
+                }else {
+                  error("hexadecimal digit expected");
+                }
                 break;
               case 'u': // '\u{XXX}'
                 chunk.next(1);
                 if(chunk.current != '{') error("missing '{'");
 
                 int j = 1;
-                while(CharSequence.isxDigit(chunk.charAt(j))) j++;
+                while(CharSequence.isxDigit(chunk.charAt(j))) {
+                  j++;
+                }
 
                 if(chunk.charAt(j) != '}') error("missing '}'");
                 var seq = chunk.substring(1, j);
@@ -291,7 +295,9 @@ class Lexer {
                 if (d <= 0x10FFFF) {
                   _save_c(d);
                   chunk.next(j+1);
-                }else error("UTF-8 value too large near '$seq'");
+                }else {
+                  error("UTF-8 value too large near '$seq'");
+                }
                 continue;
               case '\n': case '\r':
                 _save_c(10); // write '\n'
@@ -306,8 +312,11 @@ class Lexer {
                 chunk.next(1);
                 while (chunk.length > 0 &&
                     CharSequence.isWhiteSpace(chunk.current)) {
-                  if(CharSequence.isNewLine(chunk.current)) _incLineNumber();
-                  else chunk.next(1);
+                  if(CharSequence.isNewLine(chunk.current)) {
+                    _incLineNumber();
+                  } else {
+                    chunk.next(1);
+                  }
                 }
                 continue;
               default:
@@ -339,8 +348,10 @@ class Lexer {
 
   String readLongString(bool isString, int sep) {
     _save_and_next(); /* skip 2nd `[' */
-    if (CharSequence.isNewLine(chunk.current)) /* string starts with a newline? */
+    if (CharSequence.isNewLine(chunk.current)) {
+      /* string starts with a newline? */
       _incLineNumber();
+    }
     /* skip it */
     loop:
     for (;;) {
@@ -363,19 +374,21 @@ class Lexer {
           if (!isString) _buff.clear();
           break;
         default:
-          if (isString)
+          if (isString) {
             _save_and_next();
-          else
+          } else {
             chunk.next(1);
+          }
       }
     }
     /* loop */
     if (isString) {
       var rawToken = _buff.toString();
-      int trim_by = 2 + sep;
-      return rawToken.substring(trim_by, rawToken.length - trim_by);
-    } else
+      int trimBy = 2 + sep;
+      return rawToken.substring(trimBy, rawToken.length - trimBy);
+    } else {
       return '';
+    }
   }
 
   int _skip_sep() {
@@ -394,15 +407,21 @@ class Lexer {
     String expo = "Ee";
     String first = chunk.current;
     _save_and_next();
-    if (first == '0' && chunk.startsWith("xX"))  /* hexadecimal? */
+    if (first == '0' && chunk.startsWith("xX")) {
+      /* hexadecimal? */
       expo = "Pp";
+    }
 
     for (;;) {
-      if (chunk.startsWith(expo))  /* exponent part? */
+      if (chunk.startsWith(expo)) {
+        /* exponent part? */
         chunk.startsWith("-+");  /* optional exponent sign */
-      if (CharSequence.isxDigit(chunk.current) || chunk.current == '.')
+      }
+      if (CharSequence.isxDigit(chunk.current) || chunk.current == '.') {
         _save_and_next();
-      else break;
+      } else {
+        break;
+      }
     }
     return _buff.toString();
   }

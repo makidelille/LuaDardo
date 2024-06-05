@@ -143,7 +143,7 @@ class StatParser {
     var initExp = ExpParser.parseExp(lexer); // exp
     lexer.nextTokenOfKind(TokenKind.TOKEN_SEP_COMMA); // ,
     var limitExp = ExpParser.parseExp(lexer); // exp
-    var stepExp;
+    Exp stepExp;
     if (lexer.LookAhead() == TokenKind.TOKEN_SEP_COMMA) {
       lexer.nextToken(); // ,
       stepExp = ExpParser.parseExp(lexer); // exp
@@ -322,7 +322,7 @@ class StatParser {
     }
 
     // workaround: return multiple values
-    return Map<Exp, bool>()..[exp] = hasColon;
+    return <Exp, bool>{}..[exp] = hasColon;
   }
 
 }
